@@ -374,7 +374,7 @@ int openrtl_alloc_allocate(OpenrtlRegalloc *alloc) {
         }
         expire_len = 0;
 
-        if (i->reg) {
+        if (i->reserved) {
             size_t j;
             for (j = 0; j < alloc->registers.len; j++) {
                 if (i->reg == j) {
