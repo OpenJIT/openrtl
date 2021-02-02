@@ -16,6 +16,8 @@ typedef struct OpenrtlInst OpenrtlInst;
 typedef struct OpenrtlTable OpenrtlTable;
 typedef struct OpenrtlLinker OpenrtlLinker;
 typedef struct OpenrtlMatrix OpenrtlMatrix;
+typedef struct OpenrtlTypeInfo OpenrtlTypeInfo;
+typedef struct OpenrtlRegalloc OpenrtlRegalloc;
 
 struct OpenrtlEntry {
     const char *name;
@@ -94,6 +96,7 @@ struct OpenrtlMatrix {
 };
 
 struct OpenrtlBuffer {
+    size_t params;
     size_t cap;
     size_t len;
     void *ptr;
@@ -131,6 +134,7 @@ enum {
     OPENRTL_OP_CALL,
     // arith r
     OPENRTL_OP_CALL_INDIRECT,
+    // long relative +i
     OPENRTL_OP_BRANCH,
     OPENRTL_OP_BRANCH_CARRY,
     OPENRTL_OP_BRANCH_OVERFLOW,
@@ -238,6 +242,113 @@ struct OpenrtlInst {
     };
 };
 
+struct OpenrtlTypeInfo {
+    size_t size;
+    size_t align;
+};
+
+enum {
+    OPENRTL_REG_ALLOCATED,
+    OPENRTL_REG_SPILLED,
+};
+
+enum {
+    // these have to be `8 << OPENRTL_SIZE_XX = XX`
+    // i.e. log2(bitwidth) - 3
+    OPENRTL_SIZE_8 = 0,
+    OPENRTL_SIZE_16 = 1,
+    OPENRTL_SIZE_32 = 2,
+    OPENRTL_SIZE_64 = 3,
+    OPENRTL_SIZE_COUNT,
+};
+
+// machine register
+struct OpenrtlMReg {
+    uint32_t number;
+    int size;
+};
+
+// generic machine register
+struct OpenrtlGmReg {
+    uint32_t number;
+};
+
+// machine stack-allocated value
+struct OpenrtlMStack {
+    uint64_t offset;
+    int size;
+    int align;
+};
+
+struct OpenrtlPurpose {
+    int tag;
+    union {
+        struct OpenrtlMReg reg;
+        struct OpenrtlMStack stack;
+    };
+};
+
+typedef int64_t OpenrtlLifetime;
+
+struct OpenrtlRegEntry {
+    OpenrtlLifetime start;
+    OpenrtlLifetime end;
+    uint64_t key;
+    struct OpenrtlPurpose purpose;
+};
+
+struct OpenrtlRegisterTable {
+    size_t len;
+    size_t cap;
+    struct OpenrtlRegEntry *entries;
+};
+
+struct OpenrtlInterval {
+    uint64_t name;
+    OpenrtlTypeInfo ti;
+    struct OpenrtlPurpose purpose;
+    OpenrtlLifetime start;
+    OpenrtlLifetime end;
+    int stack;
+    int reserved;
+    uint32_t reg;
+    int size;
+};
+
+struct OpenrtlPool {
+    size_t len;
+    size_t cap;
+    struct OpenrtlGmReg *registers;
+};
+
+struct OpenrtlIntervals {
+    size_t len;
+    size_t cap;
+    struct OpenrtlInterval *intervals;
+};
+
+struct OpenrtlActive {
+    size_t index;
+    struct OpenrtlGmReg reg;
+};
+
+struct OpenrtlActives {
+    size_t len;
+    size_t cap;
+    struct OpenrtlActive *actives;
+};
+
+struct OpenrtlRegalloc {
+    uint64_t counter;
+    struct OpenrtlPool registers;
+    struct OpenrtlPool parameters;
+    struct OpenrtlIntervals live;
+    struct OpenrtlIntervals stack;
+    struct OpenrtlActives active;
+    int64_t variables[256];
+    uint64_t offset;
+};
+
 void openrtl_context(OpenrtlContext *ctx);
 void openrtl_del_context(OpenrtlContext *ctx);
 void openrtl_add_buffer(OpenrtlContext *ctx, const char *name, OpenrtlBuffer *buf);
@@ -248,6 +359,13 @@ void openrtl_buffer(OpenrtlBuffer *buf);
 void openrtl_del_buffer(OpenrtlBuffer *buf);
 void openrtl_local(OpenrtlBuffer *ctx, const char *name, uint64_t addr);
 void openrtl_symbol(OpenrtlBuffer *ctx, int type, const char *name);
+
+void openrtl_alloc_linscan(OpenrtlRegalloc *alloc, size_t regc, size_t paramc, struct OpenrtlGmReg *params);
+void openrtl_alloc_add(OpenrtlRegalloc *alloc, struct OpenrtlInterval *interval);
+void openrtl_alloc_param(OpenrtlRegalloc *alloc, struct OpenrtlInterval *interval, uint32_t param);
+int openrtl_alloc_allocate(OpenrtlRegalloc *alloc);
+void openrtl_alloc_find(OpenrtlRegalloc *alloc, OpenrtlContext *ctx, OpenrtlBuffer *buf);
+void openrtl_alloc_regtable(struct OpenrtlRegisterTable *dest, OpenrtlRegalloc *alloc);
 
 int openrtl_return(OpenrtlBuffer *buf);
 int openrtl_enter(OpenrtlBuffer *buf, uint32_t imm);

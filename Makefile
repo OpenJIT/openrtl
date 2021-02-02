@@ -4,8 +4,8 @@ AS:=as
 INCDIR:=include
 BIN:=libopenrtl.so
 
-SRC:=lib.c
-OBJ:=lib.o
+SRC:=lib.c regalloc.c
+OBJ:=lib.o regalloc.o
 INC:=$(INCDIR)/openrtl.h
 
 CFLAGS:=-g -ggdb -Wall -Wextra -pedantic -std=c11 -D_GNU_SOURCE=1 -fPIC
